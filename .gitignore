@@ -1,0 +1,45 @@
+# Secrets
+.env
+.env.*
+!.env.example
+kaggle.json
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+*.egg-info/
+build/
+dist/
+
+# Data and models (never in Git — see PROJECT_PROMPT.md Section 6.1)
+data_cache/
+data/raw/
+data/interim/
+*.tif
+*.tiff
+*.jp2
+*.nc
+*.zarr/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+!fixtures/**/*.tif
+wandb/
+mlruns/
+
+# Node / web
+node_modules/
+web/dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
