@@ -1,0 +1,16 @@
+# Sentinel-2 composite builds on Kaggle CPU sessions (no GPU quota). Network-bound.
+runs:
+  zones:
+    commit: HEAD            # resolved to the pushed git SHA at push time
+    config: configs/pilot.yaml
+    zones: [A, B, C]
+    years: "2022-2026"
+
+kernel:
+  title_prefix: roadwatch-s2-build
+  code_file: run.py
+  dataset_sources: []
+  accelerator: ""
+  enable_gpu: false
+  is_private: true
+  enable_internet: true

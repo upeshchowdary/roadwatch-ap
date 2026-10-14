@@ -23,6 +23,14 @@ def _aoi_geom(cfg):
     return cfg.aoi.geometry()
 
 
+def _rel(p: Path) -> str:
+    """Path relative to the repo if inside it, else absolute (e.g. /kaggle/working)."""
+    try:
+        return Path(p).resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return Path(p).as_posix()
+
+
 def _zone_geoms(cfg):
     from shapely.geometry import box
 
@@ -122,12 +130,72 @@ def s2_build(
                         "cloud_fraction": round(c.cloud_fraction, 4), "qa_pass": ok,
                         "has_road": None, "status": "included" if ok else "reserved",
                         "reserve_reason": None if ok else ("cloudy" if not qa_valid.passed else "qa_failed"),
-                        "local_path": str(path.relative_to(ROOT)), "config_hash": h,
+                        "local_path": _rel(path), "config_hash": h,
                     })
                 registry.upsert(rows)
                 n_ok = sum(r["qa_pass"] for r in rows)
                 typer.echo(f"{gname} {date_key}: {len(rows)} tiles, {n_ok} pass QA, "
                            f"scenes={len(comps[0].scene_ids) if comps else 0}")
+
+
+@app.command("labels-build")
+def labels_build(
+    config: Path = DEFAULT_CFG,
+    pbf: Path = ROOT / "data_cache" / "osm" / "southern-zone-latest.osm.pbf",
+    out_dir: Path = ROOT / "data_cache" / "labels" / "osm",
+    min_road_px: int = 20,
+) -> None:
+    """Rasterise OSM roads for every AOI tile; mark has_road; apply empty_tile_keep_ratio."""
+    from datetime import UTC, datetime
+
+    from PIL import Image
+    from shapely.geometry import box
+
+    from roadwatch.data import registry
+    from roadwatch.data.grid import TileKey, tiles_frame
+    from roadwatch.data.splits import assign_splits
+    from roadwatch.labels.osm import extract_roads, keep_empty_tile, rasterize_tile
+
+    cfg = load_config(config)
+    aoi = _aoi_geom(cfg)
+    tiles = assign_splits(tiles_frame(aoi, cfg.aoi.grid), cfg.split, _zone_geoms(cfg))
+    tiles["zone"] = ""
+    for z in cfg.aoi.zones:
+        tiles.loc[tiles.intersects(box(*z.bbox)), "zone"] = z.name
+    roads = extract_roads(str(pbf), aoi)
+    snap = datetime.fromtimestamp(pbf.stat().st_mtime, UTC).date().isoformat()
+    roads_path = ROOT / "data_cache" / "osm" / f"roads_{cfg.aoi.name}.parquet"
+    roads.to_parquet(roads_path)
+    typer.echo(f"OSM roads in AOI: {len(roads):,} lines -> {_rel(roads_path)}")
+    typer.echo(f"  by class: {roads.highway.value_counts().head(8).to_dict()}")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    by_epsg = {e: roads.to_crs(e) for e in tiles.epsg.unique()}
+    rows, h = [], cfg.config_hash()
+    for t in tiles.itertuples():
+        key = TileKey.parse(t.tile_id)
+        m = rasterize_tile(by_epsg[t.epsg], key)
+        path = out_dir / f"{t.tile_id}.png"
+        Image.fromarray(m * 255).convert("1").save(path, optimize=True)
+        has_road = int(m.sum()) >= min_road_px
+        status, reason = "included", None
+        if t.split == "buffer":
+            status, reason = "reserved", "holdout_buffer"
+        elif (not has_road and t.split in ("train", "val")
+              and not keep_empty_tile(t.tile_id, cfg.data.empty_tile_keep_ratio)):
+            status, reason = "reserved", "empty_tile"
+        rows.append({
+            "tile_id": t.tile_id, "sensor": "osm_label", "date_key": f"osm_{snap}",
+            "epsg": key.epsg, "col": key.col, "row": key.row, "split": t.split, "zone": t.zone,
+            "stratum": None, "scene_ids": f"geofabrik:{pbf.name}@{snap}", "bands_used": "road",
+            "bands_reserved": "", "storage_dtype": "1bit", "valid_fraction": 1.0,
+            "cloud_fraction": 0.0, "qa_pass": True, "has_road": has_road, "status": status,
+            "reserve_reason": reason, "local_path": _rel(path), "config_hash": h,
+        })
+    df = registry.upsert(rows)
+    lab = df[df.sensor == "osm_label"]
+    typer.echo(f"tiles: {len(lab)}  has_road: {int(lab.has_road.sum())}  "
+               f"status: {lab.groupby(['status', lab.reserve_reason.fillna('')]).size().to_dict()}")
 
 
 @holdout_app.command("freeze")

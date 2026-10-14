@@ -39,12 +39,21 @@ def kaggle(*args: str) -> subprocess.CompletedProcess:
 
 def build(model: str, run: str) -> tuple[Path, dict, dict]:
     spec = yaml.safe_load((ROOT / "kaggle" / model / "runs.yaml").read_text(encoding="utf-8"))
-    cfg = {**spec["defaults"], **spec["runs"][run]}
+    cfg = {**spec.get("defaults", {}), **spec["runs"][run]}
+    if cfg.get("commit") == "HEAD":  # pin code version; must already be on GitHub
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                             cwd=ROOT, check=True).stdout.strip()
+        remote = subprocess.run(["git", "branch", "-r", "--contains", sha], capture_output=True,
+                                text=True, cwd=ROOT).stdout
+        if "origin/" not in remote:
+            raise RuntimeError(f"commit {sha[:8]} is not pushed to GitHub yet (git push first)")
+        cfg["commit"] = sha
     cfg_hash = hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:12]
     cfg["run_id"] = f"{model}_{run}_{cfg_hash}"
     cfg["config_hash"] = cfg_hash
 
-    src = (ROOT / "kaggle" / model / "train.py").read_text(encoding="utf-8")
+    code_file = spec["kernel"].get("code_file", "train.py")
+    src = (ROOT / "kaggle" / model / code_file).read_text(encoding="utf-8")
     block = "RUN_CONFIG = " + pprint.pformat(cfg, sort_dicts=False) + "\n"
     new_src, n = re.subn(r"RUN_CONFIG = \{.*?\n\}\n", lambda _: block, src, count=1, flags=re.S)
     if n != 1:
@@ -57,22 +66,22 @@ def build(model: str, run: str) -> tuple[Path, dict, dict]:
     slug = f"{k['title_prefix']}-{run}".replace("_", "-")
     out = ROOT / "kaggle" / "build" / f"{model}_{run}"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "train.py").write_text(new_src, encoding="utf-8")
+    (out / code_file).write_text(new_src, encoding="utf-8")
     meta = {
         "id": f"{user}/{slug}",
         "title": slug,
-        "code_file": "train.py",
+        "code_file": code_file,
         "language": "python",
         "kernel_type": "script",
         "is_private": k["is_private"],
-        "enable_gpu": True,
+        "enable_gpu": k.get("enable_gpu", True),
         "enable_tpu": False,
         "enable_internet": k["enable_internet"],
         "dataset_sources": k["dataset_sources"],
         "competition_sources": [],
         "kernel_sources": [],
         "model_sources": [],
-        "machine_shape": k["accelerator"],
+        "machine_shape": k.get("accelerator") or "",
     }
     (out / "kernel-metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     return out, cfg, meta
@@ -109,7 +118,8 @@ def main() -> int:
     print(f"run_id={cfg['run_id']}  kernel={meta['id']}  build={out.relative_to(ROOT)}")
     if a.dry_run:
         return 0
-    r = kaggle("kernels", "push", "-p", str(out), "--accelerator", meta["machine_shape"])
+    acc = ["--accelerator", meta["machine_shape"]] if meta["machine_shape"] else []
+    r = kaggle("kernels", "push", "-p", str(out), *acc)
     print((r.stdout + r.stderr).strip())
     log_run(cfg, meta, "pushed" if r.returncode == 0 else "push_failed")
     return r.returncode

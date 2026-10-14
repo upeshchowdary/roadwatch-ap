@@ -8,6 +8,7 @@ status = included | reserved; reserve_reason in RESERVE_REASONS.
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -15,7 +16,8 @@ import pandas as pd
 
 from roadwatch.config import ROOT
 
-REGISTRY_PATH = ROOT / "evidence" / "tile_registry.parquet"
+# override per process (parallel Kaggle workers each write their own file, merged after)
+REGISTRY_PATH = Path(os.environ.get("ROADWATCH_REGISTRY", ROOT / "evidence" / "tile_registry.parquet"))
 RESERVE_REASONS = {
     "empty_tile", "band_dropped", "cloudy", "prefilter_skipped", "subsampled", "extra_date",
     "qa_failed", "holdout_buffer",
