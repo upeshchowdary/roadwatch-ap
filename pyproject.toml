@@ -47,7 +47,7 @@ cache-dir = ".cache/uv"
 [tool.ruff]
 line-length = 110
 target-version = "py311"
-extend-exclude = ["kaggle/build", "data_cache"]
+extend-exclude = ["kaggle/build", "kaggle/cards", "data_cache"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
