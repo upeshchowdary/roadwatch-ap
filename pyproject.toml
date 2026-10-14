@@ -54,7 +54,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 # RUN_CONFIG must stay above imports so kaggle_push.py can inject it
-"kaggle/**/train.py" = ["E402", "I001"]
+"kaggle/**/*.py" = ["E402", "I001"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
