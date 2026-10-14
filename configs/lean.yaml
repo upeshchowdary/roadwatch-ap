@@ -1,0 +1,29 @@
+# Lean-build switches (PROJECT_PROMPT.md Section 6.4).
+# Enhancement Mode (Section 14) overrides these in an enhance_<pack>.yaml; never edit in place
+# for an enhancement — copy, so the lean run stays reproducible.
+data:
+  s2_bands: [B02, B03, B04, B08]      # Pack B adds B05,B06,B07,B8A,B11,B12
+  s1_bands: [vv, vh]
+  storage_dtype: uint8                # Pack B -> uint16
+  temporal_mode: seasonal_composite   # Pack C -> all_scenes
+  dates_per_year: 2                   # pre-monsoon + post-monsoon; Pack C -> 4 or 12
+  date_start: "2022-01-01"
+  date_end: "2026-12-31"
+  empty_tile_keep_ratio: 0.2          # Pack A -> 1.0
+  sampling: stratified
+model:
+  backbone_mode: frozen_cached        # Pack D -> lora / full_finetune
+  samroad_mode: short_finetune
+train:
+  tune_subset_ratio: 0.2
+  seeds: [0, 1, 2]
+  max_gpu_hours_without_asking: 8.0
+change:
+  prefilter_threshold: 0.15           # placeholder until tuned on validation blocks
+  persistence_min_dates: 2
+  min_length_m: 100
+qa:
+  max_cloud_fraction: 0.3             # placeholder until tuned
+  max_registration_error_px: 1.0
+infer:
+  statewide_model: student            # Pack H -> teacher

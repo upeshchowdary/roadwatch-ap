@@ -1,0 +1,6 @@
+item_id,source_url,access_date,licence,owner,ids,transforms,local_path,kpi_use
+bnd_ap,https://nominatim.openstreetmap.org/lookup?osm_ids=R2022095,2026-10-14,ODbL-1.0,OpenStreetMap contributors,osm_relation=2022095;wikidata=Q1159,"polygon from relation; simplify 0.0005 deg",configs/boundaries/andhra_pradesh.geojson,"KPI-4,KPI-5 (statewide AOI, holdout blocks)"
+bnd_ntr,https://nominatim.openstreetmap.org/lookup?osm_ids=R14000341,2026-10-14,ODbL-1.0,OpenStreetMap contributors,osm_relation=14000341;wikidata=Q110876763,"polygon from relation; simplify 0.0005 deg",configs/boundaries/ntr_district.geojson,pilot AOI
+bnd_krishna,https://nominatim.openstreetmap.org/lookup?osm_ids=R2022135,2026-10-14,ODbL-1.0,OpenStreetMap contributors,osm_relation=2022135,"polygon from relation; simplify 0.0005 deg",configs/boundaries/krishna_district.geojson,pilot AOI
+bnd_pilot,derived,2026-10-14,ODbL-1.0,OpenStreetMap contributors,union(bnd_ntr;bnd_krishna),"union; simplify 0.0005 deg",configs/boundaries/ntr_krishna.geojson,pilot AOI
+holdout_v1,derived (roadwatch holdout freeze),2026-10-14,n/a,project,block_ids_sha256=8a9150a57d46,"EPSG:7755 20.48 km blocks; seed 1564; 20% test; 1 km buffer; zones A/B/C",evidence/holdout/test_blocks.geojson,"KPI-1..6 (all test metrics), AC-3"

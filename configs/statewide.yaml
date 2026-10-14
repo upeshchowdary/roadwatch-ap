@@ -1,0 +1,10 @@
+# CP2 Tier-1 statewide screening: all of Andhra Pradesh. Same code, different boundary.
+include: [lean.yaml, split.yaml, zones.yaml]
+aoi:
+  name: andhra_pradesh
+  boundary: configs/boundaries/andhra_pradesh.geojson
+  zones_extend_aoi: false   # zones lie inside AP; they still count as holdout
+  grid:
+    resolution_m: 10
+    tile_size_px: 512
+    crs: auto_utm

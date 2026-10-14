@@ -1,0 +1,14 @@
+# High-res verification zones (~20 x 20 km each), all three chosen 2026-10-14.
+# FROZEN as evaluation-only holdout (split.zones_are_holdout): never trained or tuned on.
+# Shared by pilot and statewide configs so both see the same holdout.
+aoi:
+  zones:
+    - name: A_vijayawada_west_bypass
+      bbox: [80.500, 16.450, 80.687, 16.630]
+      description: Vijayawada Western Bypass corridor (Gollapudi-Jakkampudi); new 6-lane highway, wide roads.
+    - name: B_machilipatnam_port
+      bbox: [81.050, 16.100, 81.237, 16.280]
+      description: Machilipatnam (Manginapudi) greenfield port and access roads; coastal/delta terrain.
+    - name: C_gannavaram_nunna
+      bbox: [80.690, 16.450, 80.877, 16.630]
+      description: Gannavaram-Kesarapalli-Nunna peri-urban belt; new housing layouts, narrow roads.

@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: uv sync --frozen
+      - name: Lint
+        run: uv run ruff check src tests scripts
+      - name: Tests (no network)
+        run: uv run pytest -m "not network"
+      - name: Frozen holdout unchanged
+        run: uv run roadwatch holdout check

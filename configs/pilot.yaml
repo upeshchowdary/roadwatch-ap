@@ -1,0 +1,10 @@
+# CP1 pilot: NTR + Krishna districts plus the three high-res zones (configs/zones.yaml).
+include: [lean.yaml, split.yaml, zones.yaml]
+aoi:
+  name: ntr_krishna_pilot
+  boundary: configs/boundaries/ntr_krishna.geojson
+  zones_extend_aoi: true
+  grid:
+    resolution_m: 10
+    tile_size_px: 512
+    crs: auto_utm

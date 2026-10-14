@@ -1,0 +1,35 @@
+{
+  "frozen_on": "2026-10-14",
+  "aoi": "andhra_pradesh",
+  "split": {
+    "block_size_m": 20480.0,
+    "test_fraction": 0.2,
+    "val_fraction": 0.1,
+    "buffer_m": 1000.0,
+    "seed": 1564,
+    "zones_are_holdout": true
+  },
+  "n_blocks_total": 489,
+  "n_test_blocks": 95,
+  "holdout_zones": {
+    "A_vijayawada_west_bypass": [
+      80.5,
+      16.45,
+      80.687,
+      16.63
+    ],
+    "B_machilipatnam_port": [
+      81.05,
+      16.1,
+      81.237,
+      16.28
+    ],
+    "C_gannavaram_nunna": [
+      80.69,
+      16.45,
+      80.877,
+      16.63
+    ]
+  },
+  "block_ids_sha256": "8a9150a57d46d01685570a460db08e4d1fc68b410ea438d7f66ce2cbb6f4169e"
+}

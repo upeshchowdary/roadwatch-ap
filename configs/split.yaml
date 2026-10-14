@@ -1,0 +1,10 @@
+# Spatial holdout — FROZEN on 2026-10-14. Do not edit: lean and every enhancement must use
+# the identical test blocks (PROJECT_PROMPT.md Section 2, "Test set never changes").
+# Blocks live on one India-wide grid (EPSG:7755), so pilot and statewide runs share them.
+# The statewide block list is committed at evidence/holdout/ and verified by hash in tests.
+split:
+  block_size_m: 20480   # 4 x 4 Sentinel-2 tiles (512 px @ 10 m)
+  test_fraction: 0.2
+  val_fraction: 0.1
+  buffer_m: 1000        # any chip within 1 km of a test block is excluded from training
+  seed: 1564
