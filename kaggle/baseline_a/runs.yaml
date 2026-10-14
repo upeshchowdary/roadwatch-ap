@@ -1,0 +1,54 @@
+# Baseline A run definitions. `uv run python scripts/kaggle_push.py baseline_a <run>`
+# Rule 7.5: first run of every model is a 1-epoch timing run. Ask before > 8 GPU hours.
+# Kaggle free GPU quota (checked 2026-10-14): 6 h/week/account, resets Saturday 00:00 UTC.
+# Timing run v1 (1 crop/image): 508 s/epoch, val IoU 0.451 after 1 epoch, CPU-decode bound.
+# v2 uses 4 crops per decoded image: one v2 epoch = 4 v1 epochs of crops.
+defaults:
+  arch: Unet
+  encoder: resnet34
+  encoder_weights: imagenet
+  crop: 512
+  batch_size: 16          # crops per step (= 4 images x 4 crops)
+  crops_per_image: 4
+  lr: 0.0003
+  weight_decay: 0.0001
+  subset_ratio: 1.0
+  patience: 3             # validations without improvement
+  val_every: 2
+  num_workers: 4
+  max_train_batches: 0
+  eval_test: false
+  export_onnx: false
+  resume_dir: ""
+  seed: 0
+  max_hours: 3.0          # hard stop (resumable) to protect the 6 h/week quota
+
+runs:
+  timing:
+    epochs: 1
+    timing_only: true
+    crops_per_image: 1
+    val_every: 1
+  full_s0:         # final runs: 3 seeds split across team accounts
+    epochs: 12
+    timing_only: false
+    eval_test: true
+    export_onnx: true
+    seed: 0
+  full_s1:
+    epochs: 12
+    timing_only: false
+    eval_test: true
+    seed: 1
+  full_s2:
+    epochs: 12
+    timing_only: false
+    eval_test: true
+    seed: 2
+
+kernel:
+  title_prefix: roadwatch-baseline-a
+  dataset_sources: [balraj98/deepglobe-road-extraction-dataset]
+  accelerator: NvidiaTeslaT4
+  is_private: true
+  enable_internet: true

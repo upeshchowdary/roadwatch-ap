@@ -88,6 +88,14 @@ class DataConfig(_Strict):
     empty_tile_keep_ratio: float = Field(0.2, ge=0, le=1)
     sampling: Literal["stratified", "random", "all"] = "stratified"
     stac_url: str = "https://planetarycomputer.microsoft.com/api/stac/v1"
+    # season windows (MM-DD, MM-DD); dates_per_year picks the first N
+    seasons: dict[str, tuple[str, str]] = {
+        "pre_monsoon": ("03-01", "05-31"),
+        "post_monsoon": ("10-15", "12-31"),
+    }
+    max_scenes_per_composite: int = Field(8, ge=1, description="least-cloudy scenes used per composite")
+    scene_max_cloud_pct: float = Field(60.0, ge=0, le=100)
+    reflectance_scale_max: float = 3000.0  # L2A reflectance (x1e4) mapped to 255 in uint8 storage
 
     @field_validator("s2_bands")
     @classmethod

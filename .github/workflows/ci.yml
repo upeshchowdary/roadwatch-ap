@@ -16,7 +16,7 @@ jobs:
       - name: Install
         run: uv sync --frozen
       - name: Lint
-        run: uv run ruff check src tests scripts
+        run: uv run ruff check src tests scripts kaggle
       - name: Tests (no network)
         run: uv run pytest -m "not network"
       - name: Frozen holdout unchanged

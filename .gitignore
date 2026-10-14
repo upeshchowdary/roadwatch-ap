@@ -43,3 +43,6 @@ web/dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# Kaggle build dirs (generated, contain account id)
+kaggle/build/
