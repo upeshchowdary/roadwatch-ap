@@ -54,6 +54,82 @@ def info(config: Path = DEFAULT_CFG) -> None:
                    f"splits={zt.split.value_counts().to_dict()}")
 
 
+@app.command("s2-build")
+def s2_build(
+    config: Path = DEFAULT_CFG,
+    zones_only: bool = typer.Option(True, help="only the high-res zones (False = whole AOI)"),
+    zone: str = typer.Option("", help="restrict to one zone name prefix, e.g. A"),
+    years: str = typer.Option("2022-2026", help="year range, e.g. 2022-2026"),
+    out_dir: Path = ROOT / "data_cache" / "s2",
+) -> None:
+    """Build cloud-masked seasonal Sentinel-2 composites; log every tile in the registry."""
+    import logging
+    from datetime import date
+
+    from shapely.geometry import box
+
+    from roadwatch.data import registry
+    from roadwatch.data.grid import TileKey, tiles_frame
+    from roadwatch.data.sentinel2 import composite_region, season_window, write_geotiff
+    from roadwatch.data.splits import assign_splits
+    from roadwatch.qa.checks import check_grid, check_valid
+
+    logging.basicConfig(level=logging.WARNING)
+    cfg = load_config(config)
+    tiles = assign_splits(tiles_frame(_aoi_geom(cfg), cfg.aoi.grid), cfg.split, _zone_geoms(cfg))
+    tiles["zone"] = ""
+    for z in cfg.aoi.zones:
+        tiles.loc[tiles.intersects(box(*z.bbox)), "zone"] = z.name
+    if zones_only:
+        tiles = tiles[tiles.zone != ""]
+    if zone:
+        tiles = tiles[tiles.zone.str.startswith(zone)]
+    groups = (tiles.groupby("zone") if zones_only else
+              tiles.groupby([tiles.epsg, tiles.col // 5, tiles.row // 5]))
+    y0, y1 = (int(y) for y in years.split("-"))
+    seasons = list(cfg.data.seasons)[: cfg.data.dates_per_year]
+    reserved_bands = [b for b in registry.S2_ALL_BANDS if b not in cfg.data.s2_bands]
+    today, h = date.today(), cfg.config_hash()
+
+    for gname, g in groups:
+        keys = [TileKey.parse(t) for t in g.tile_id]
+        for year in range(y0, y1 + 1):
+            for season in seasons:
+                if season_window(cfg.data, season, year)[1] > today:
+                    continue  # season not finished yet
+                date_key = f"{year}_{season}"
+                d = out_dir / date_key
+                todo = [k for k in keys if not (d / f"{k.tile_id}.tif").exists()]
+                if not todo:
+                    continue
+                d.mkdir(parents=True, exist_ok=True)
+                comps = composite_region(todo, season, year, cfg.data)
+                rows = []
+                for c, k in zip(comps, todo, strict=True):
+                    qa_grid = check_grid(c.crs, c.transform, c.data.shape[1:], k)
+                    qa_valid = check_valid(c.valid_fraction, c.cloud_fraction, cfg.qa.max_cloud_fraction)
+                    path = d / f"{k.tile_id}.tif"
+                    write_geotiff(c, path)
+                    meta = tiles.set_index("tile_id").loc[k.tile_id]
+                    ok = qa_grid.passed and qa_valid.passed
+                    rows.append({
+                        "tile_id": k.tile_id, "sensor": "s2", "date_key": date_key,
+                        "epsg": k.epsg, "col": k.col, "row": k.row, "split": meta.split,
+                        "zone": meta.zone, "stratum": None, "scene_ids": ",".join(c.scene_ids),
+                        "bands_used": ",".join(c.bands), "bands_reserved": ",".join(reserved_bands),
+                        "storage_dtype": cfg.data.storage_dtype,
+                        "valid_fraction": round(c.valid_fraction, 4),
+                        "cloud_fraction": round(c.cloud_fraction, 4), "qa_pass": ok,
+                        "has_road": None, "status": "included" if ok else "reserved",
+                        "reserve_reason": None if ok else ("cloudy" if not qa_valid.passed else "qa_failed"),
+                        "local_path": str(path.relative_to(ROOT)), "config_hash": h,
+                    })
+                registry.upsert(rows)
+                n_ok = sum(r["qa_pass"] for r in rows)
+                typer.echo(f"{gname} {date_key}: {len(rows)} tiles, {n_ok} pass QA, "
+                           f"scenes={len(comps[0].scene_ids) if comps else 0}")
+
+
 @holdout_app.command("freeze")
 def holdout_freeze(config: Path = ROOT / "configs" / "statewide.yaml",
                    force: bool = typer.Option(False, help="overwrite an existing frozen holdout")) -> None:

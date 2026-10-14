@@ -1,3 +1,5 @@
 run_id,person,account,notebook,config_hash,start_utc,end_utc,gpu_hours,result,checkpoint_link
 baseline_a_timing_1ae2ec2b3def,lead,upeshchowdary,upeshchowdary/roadwatch-baseline-a-timing,1ae2ec2b3def,2026-10-14T09:35:28+00:00,2026-10-14T09:45:00+00:00,0.16,timing ok: 508 s/epoch T4x2; val_iou=0.451 after 1 epoch,data_cache/runs/baseline_a_timing (local only)
 baseline_a_full_s0_cc3c8394675b,lead,upeshchowdary,upeshchowdary/roadwatch-baseline-a-full-s0,cc3c8394675b,2026-10-14T09:55:00+00:00,,,pushed,
+baseline_a_full_s1_726c84a365a3,A,,roadwatch-baseline-a-full-s1,726c84a365a3,2026-10-14T10:05:37+00:00,,,card_issued,
+baseline_a_full_s2_7ae715827d0f,B,,roadwatch-baseline-a-full-s2,7ae715827d0f,2026-10-14T10:05:38+00:00,,,card_issued,

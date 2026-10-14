@@ -143,6 +143,99 @@ def composite_tile(key: TileKey, season: str, year: int, cfg: DataConfig,
     )
 
 
+GDAL_ENV = {
+    "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",   # avoid listing Azure blob containers
+    "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif,.TIF,.tiff",
+    "GDAL_HTTP_MULTIPLEX": "YES",
+    "GDAL_HTTP_VERSION": "2",
+    "VSI_CACHE": "TRUE",
+    "GDAL_HTTP_MAX_RETRY": "4",
+    "GDAL_HTTP_RETRY_DELAY": "2",
+}
+
+
+def _read_region(href: str, epsg: int, transform, width: int, height: int) -> np.ndarray:
+    with rasterio.Env(**GDAL_ENV), rasterio.open(href) as src:
+        with WarpedVRT(src, crs=f"EPSG:{epsg}", transform=transform, width=width, height=height,
+                       resampling=Resampling.nearest, src_nodata=0, nodata=0) as vrt:
+            return vrt.read(1)
+
+
+def composite_region(keys: list[TileKey], season: str, year: int, cfg: DataConfig,
+                     threads: int = 8) -> list[Composite]:
+    """Composite many tiles (same UTM zone) with ONE windowed read per scene and band.
+
+    ~50-100x faster than per-tile reads for a 20x20 km zone. Processes band by band so
+    memory stays ~ n_scenes x region pixels x 4 bytes.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    if len({k.epsg for k in keys}) != 1:
+        raise ValueError("composite_region needs tiles from one UTM zone")
+    k0 = keys[0]
+    ext = k0.extent_m
+    cols = [k.col for k in keys]
+    rows = [k.row for k in keys]
+    c0, c1, r0, r1 = min(cols), max(cols), min(rows), max(rows)
+    W, H = (c1 - c0 + 1) * k0.size_px, (r1 - r0 + 1) * k0.size_px
+    transform = from_origin(c0 * ext, (r1 + 1) * ext, k0.res_m, k0.res_m)
+    region_4326 = _to_crs(box(c0 * ext, r0 * ext, (c1 + 1) * ext, (r1 + 1) * ext), k0.epsg, 4326)
+    start, end = season_window(cfg, season, year)
+    items = search(region_4326.bounds, start, end, cfg)
+
+    def read(args):
+        it, asset = args
+        try:
+            return _read_region(it.assets[asset].href, k0.epsg, transform, W, H)
+        except Exception as e:  # noqa: BLE001
+            log.warning("read failed %s %s: %s", it.id, asset, e)
+            return None
+
+    with ThreadPoolExecutor(threads) as pool:
+        scls = list(pool.map(read, [(it, "SCL") for it in items]))
+    keep = [(it, s) for it, s in zip(items, scls, strict=True) if s is not None and (s != 0).mean() > 0.01]
+    invalid = [np.isin(s, SCL_INVALID) for _, s in keep]
+    covered = [s != 0 for _, s in keep]
+    offsets = [_boa_offset(it) for it, _ in keep]
+
+    import warnings
+
+    bands = cfg.s2_bands
+    med = np.empty((len(bands), H, W), np.float32)
+    for bi, b in enumerate(bands):
+        with ThreadPoolExecutor(threads) as pool:
+            arrs = list(pool.map(read, [(it, b) for it, _ in keep]))
+        stack = np.full((max(len(keep), 1), H, W), np.nan, np.float32)
+        for j, a in enumerate(arrs):
+            if a is None:
+                continue
+            v = np.clip(a.astype(np.float32) - offsets[j], 0, None)
+            v[invalid[j]] = np.nan
+            stack[j] = v
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            med[bi] = np.nanmedian(stack, axis=0)
+        del stack, arrs
+
+    valid = ~np.isnan(med).any(axis=0)
+    data = to_storage(med, cfg)
+    out = []
+    n = k0.size_px
+    for k in keys:
+        x0, y0 = (k.col - c0) * n, (r1 - k.row) * n
+        sl = (slice(y0, y0 + n), slice(x0, x0 + n))
+        cf = [float(inv[sl][cov[sl]].mean()) for inv, cov in zip(invalid, covered, strict=True)
+              if cov[sl].any()]
+        out.append(Composite(
+            tile_id=k.tile_id, season=season, year=year, bands=list(bands),
+            data=data[:, sl[0], sl[1]].copy(), valid_fraction=float(valid[sl].mean()),
+            cloud_fraction=float(np.mean(cf)) if cf else 1.0,
+            scene_ids=[it.id for it, _ in keep], crs=f"EPSG:{k.epsg}",
+            transform=tuple(tile_transform(k))[:6],
+        ))
+    return out
+
+
 def to_storage(refl: np.ndarray, cfg: DataConfig) -> np.ndarray:
     """Reflectance (x1e4, NaN = no data) -> storage dtype. 0 is reserved for no data."""
     nan = np.isnan(refl)
