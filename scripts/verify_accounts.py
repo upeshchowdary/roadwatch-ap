@@ -30,12 +30,13 @@ def kaggle_checks() -> None:
             capture_output=True, text=True, timeout=120, env=env,
         )
         ok = out.returncode == 0 and "ref" in out.stdout
-        lines = out.stdout.strip().splitlines()[1:4] if ok else []
-        detail = f"{len(out.stdout.strip().splitlines()) - 1} DeepGlobe datasets visible" if ok else (
-            (out.stderr or out.stdout).strip().splitlines()[-1][:200] if (out.stderr or out.stdout) else "no output")
+        refs = [ln.split(",")[0] for ln in out.stdout.splitlines()[1:] if "/" in ln.split(",")[0]]
+        if ok:
+            detail = f"{len(refs)} DeepGlobe datasets visible, e.g. {refs[:2]}"
+        else:
+            msg = (out.stderr or out.stdout or "no output").strip().splitlines()
+            detail = msg[-1][:200] if msg else "no output"
         check("Kaggle API auth", ok, detail)
-        for line in lines:
-            print("    kaggle:", line.split(",")[0])
     except Exception as e:  # noqa: BLE001
         check("Kaggle API auth", False, repr(e)[:200])
 
